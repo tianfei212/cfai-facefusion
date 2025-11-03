@@ -4,3 +4,7 @@ __pycache__
 .jobs
 .idea
 .vscode
+TensorRT-10.13.0.35
+output
+wzf3.12
+run.log

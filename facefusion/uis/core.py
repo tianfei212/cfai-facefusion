@@ -69,6 +69,7 @@ def register_ui_component(component_name : ComponentName, component: Component) 
 
 
 def init() -> None:
+	print("[UI] init enter")
 	os.environ['GRADIO_ANALYTICS_ENABLED'] = '0'
 	os.environ['GRADIO_TEMP_DIR'] = os.path.join(state_manager.get_item('temp_path'), 'gradio')
 
@@ -78,6 +79,7 @@ def init() -> None:
 
 
 def launch() -> None:
+	print("[UI] launch enter")
 	ui_layouts_total = len(state_manager.get_item('ui_layouts'))
 	with gradio.Blocks(theme = get_theme(), css = get_css(), title = metadata.get('name') + ' ' + metadata.get('version'), fill_width = True) as ui:
 		for ui_layout in state_manager.get_item('ui_layouts'):
@@ -98,7 +100,7 @@ def launch() -> None:
 
 def get_theme() -> gradio.Theme:
 	return gradio.themes.Base(
-		primary_hue = gradio.themes.colors.red,
+		primary_hue = gradio.themes.colors.orange, # 橙色
 		secondary_hue = gradio.themes.Color(
 			name = 'neutral',
 			c50 = '#fafafa',
@@ -194,4 +196,5 @@ def get_theme() -> gradio.Theme:
 
 def get_css() -> str:
 	overrides_css_path = resolve_relative_path('uis/assets/overrides.css')
-	return open(overrides_css_path).read()
+	with open(overrides_css_path, 'r', encoding='utf-8', errors='replace') as f:
+		return f.read()

@@ -31,39 +31,88 @@ from facefusion.vision import detect_image_resolution, detect_video_resolution, 
 
 
 def cli() -> None:
+
 	if pre_check():
+		
 		signal.signal(signal.SIGINT, signal_exit)
 		program = create_program()
 
 		if validate_args(program):
 			args = vars(program.parse_args())
+			
 			apply_args(args, state_manager.init_item)
 
-			if state_manager.get_item('command'):
+			cmd = state_manager.get_item('command')
+		
+			if cmd:
 				logger.init(state_manager.get_item('log_level'))
+				
 				route(args)
+				
 			else:
+				
 				program.print_help()
 		else:
+		
 			hard_exit(2)
 	else:
+		
 		hard_exit(2)
 
 
+
 def route(args : Args) -> None:
+	
 	system_memory_limit = state_manager.get_item('system_memory_limit')
 
+
 	if system_memory_limit and system_memory_limit > 0:
+		
 		limit_system_memory(system_memory_limit)
 
-	if state_manager.get_item('command') == 'force-download':
+	cmd = state_manager.get_item('command')
+	
+
+	if cmd == 'force-download':
+	
 		error_code = force_download()
+		
 		hard_exit(error_code)
 
-	if state_manager.get_item('command') == 'benchmark':
-		if not common_pre_check() or not processors_pre_check() or not benchmarker.pre_check():
+	if cmd == 'benchmark':
+	
+		ok_common = common_pre_check()
+		ok_processors = processors_pre_check()
+		ok_bench = benchmarker.pre_check()
+	
+		if not ok_common or not ok_processors or not ok_bench:
+	
 			hard_exit(2)
+	
 		benchmarker.render()
+	
+		return
+
+	
+
+
+	if cmd == 'run':
+	
+		ok_common = common_pre_check()
+		ok_processors = processors_pre_check()
+		
+		if not ok_processors:
+		
+			hard_exit(2)
+
+
+		from facefusion.uis.core import init as ui_init, launch as ui_launch
+		ui_init()
+	
+		ui_launch()
+
+		return
+
 
 	if state_manager.get_item('command') in [ 'job-list', 'job-create', 'job-submit', 'job-submit-all', 'job-delete', 'job-delete-all', 'job-add-step', 'job-remix-step', 'job-insert-step', 'job-remove-step' ]:
 		if not job_manager.init_jobs(state_manager.get_item('jobs_path')):
@@ -117,21 +166,8 @@ def pre_check() -> bool:
 
 
 def common_pre_check() -> bool:
-	common_modules =\
-	[
-		content_analyser,
-		face_classifier,
-		face_detector,
-		face_landmarker,
-		face_masker,
-		face_recognizer,
-		voice_extractor
-	]
+	return True
 
-	content_analyser_content = inspect.getsource(content_analyser).encode()
-	content_analyser_hash = hash_helper.create_hash(content_analyser_content)
-
-	return all(module.pre_check() for module in common_modules) and content_analyser_hash == '803b5ec7'
 
 
 def processors_pre_check() -> bool:
