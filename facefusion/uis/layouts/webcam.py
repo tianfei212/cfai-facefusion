@@ -17,6 +17,7 @@ from facefusion.uis.components import (
     frame_colorizer_options,
     frame_enhancer_options,
     lip_syncer_options,
+    obs_control,
     processors,
     webcam,
     webcam_options,
@@ -65,6 +66,8 @@ def render() -> gradio.Blocks:
             with gradio.Column(scale=11):
                 with gradio.Blocks():
                     webcam.render()
+                with gradio.Blocks():
+                    obs_control.render()
     return layout
 
 
@@ -83,6 +86,7 @@ def listen() -> None:
     lip_syncer_options.listen()
     execution.listen()
     execution_thread_count.listen()
+    obs_control.listen()
     webcam.listen()
 
 

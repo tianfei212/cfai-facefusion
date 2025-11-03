@@ -8,3 +8,6 @@ TensorRT-10.13.0.35
 output
 wzf3.12
 run.log
+fake_facefusion
+*.md
+.temp/facefusion/obs_settings.json
