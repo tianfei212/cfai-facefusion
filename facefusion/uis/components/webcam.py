@@ -11,6 +11,7 @@ from facefusion.types import Fps, VisionFrame, WebcamMode
 from facefusion.uis.core import get_ui_component
 from facefusion.uis.types import File
 from facefusion.vision import unpack_resolution
+from facefusion.uis.monitor_integration import save_latest_frame
 
 SOURCE_FILE: Optional[gradio.File] = None
 WEBCAM_IMAGE: Optional[gradio.Image] = None
@@ -139,6 +140,11 @@ def start(
 
         for capture_frame in multi_process_capture(camera_capture, webcam_fps):
             capture_frame = cv2.cvtColor(capture_frame, cv2.COLOR_BGR2RGB)
+            # 写入监视器缓存文件，供 MJPEG 路由使用
+            try:
+                save_latest_frame(capture_frame)
+            except Exception:
+                pass
 
             if webcam_mode == "inline":
                 yield capture_frame

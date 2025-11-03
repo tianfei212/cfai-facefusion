@@ -1,4 +1,5 @@
 import gradio
+from facefusion.uis.monitor_integration import mount as mount_monitor
 
 from facefusion import state_manager
 from facefusion.uis.components import (
@@ -86,6 +87,23 @@ def listen() -> None:
 
 
 def run(ui: gradio.Blocks) -> None:
-    ui.launch(
-        favicon_path="facefusion.ico", inbrowser=state_manager.get_item("open_browser")
+    demo = ui.launch(
+        favicon_path="facefusion.ico",
+        inbrowser=state_manager.get_item("open_browser"),
+        prevent_thread_lock=True,
     )
+
+    try:
+        app = getattr(demo, "app", None) or getattr(ui, "server_app", None) or getattr(ui, "app", None)
+        if app is not None:
+            mount_monitor(app, route_path="/monitor/mjpeg", frame_interval_sec=0.04)
+    except Exception:
+        pass
+
+    # 保持与原行为一致：阻塞当前线程
+    try:
+        demo.block()
+    except Exception:
+        import time
+        while True:
+            time.sleep(1)
