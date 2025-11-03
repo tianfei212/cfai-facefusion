@@ -8,26 +8,62 @@ import facefusion.choices
 import facefusion.jobs.job_manager
 import facefusion.jobs.job_store
 from facefusion import (
-    config, content_analyser, face_classifier, face_detector, face_landmarker,
-    face_masker, face_recognizer, inference_manager, logger, state_manager,
-    video_manager, wording
+    config,
+    content_analyser,
+    face_classifier,
+    face_detector,
+    face_landmarker,
+    face_masker,
+    face_recognizer,
+    inference_manager,
+    logger,
+    state_manager,
+    video_manager,
+    wording,
 )
 from facefusion.common_helper import create_int_metavar, is_macos
-from facefusion.download import conditional_download_hashes, conditional_download_sources, resolve_download_url
+from facefusion.download import (
+    conditional_download_hashes,
+    conditional_download_sources,
+    resolve_download_url,
+)
 from facefusion.execution import has_execution_provider
 from facefusion.face_helper import (
-    merge_matrix, paste_back, scale_face_landmark_5, warp_face_by_face_landmark_5,
+    merge_matrix,
+    paste_back,
+    scale_face_landmark_5,
+    warp_face_by_face_landmark_5,
     WARP_TEMPLATE_SET,
 )
 from facefusion.face_masker import create_box_mask, create_occlusion_mask
 from facefusion.face_selector import select_faces
-from facefusion.filesystem import in_directory, is_image, is_video, resolve_relative_path, same_file_extension
+from facefusion.filesystem import (
+    in_directory,
+    is_image,
+    is_video,
+    resolve_relative_path,
+    same_file_extension,
+)
 from facefusion.processors import choices as processors_choices
 from facefusion.processors.types import AgeModifierDirection, AgeModifierInputs
 from facefusion.program_helper import find_argument_group
 from facefusion.thread_helper import thread_semaphore
-from facefusion.types import ApplyStateItem, Args, DownloadScope, Face, InferencePool, ModelOptions, ModelSet, ProcessMode, VisionFrame
-from facefusion.vision import match_frame_color, read_static_image, read_static_video_frame
+from facefusion.types import (
+    ApplyStateItem,
+    Args,
+    DownloadScope,
+    Face,
+    InferencePool,
+    ModelOptions,
+    ModelSet,
+    ProcessMode,
+    VisionFrame,
+)
+from facefusion.vision import (
+    match_frame_color,
+    read_static_image,
+    read_static_video_frame,
+)
 
 # ========== 常量 ==========
 AGE_BG_SIZE = 512  # target_with_background 期望边长（方形）
@@ -37,90 +73,118 @@ AGE_BG_SIZE = 512  # target_with_background 期望边长（方形）
 @lru_cache()
 def create_static_model_set(download_scope: DownloadScope) -> ModelSet:
     return {
-        'styleganex_age': {
-            'hashes': {
-                'age_modifier': {
-                    'url': resolve_download_url('models-3.1.0', 'styleganex_age.hash'),
-                    'path': resolve_relative_path('../.assets/models/styleganex_age.hash')
+        "styleganex_age": {
+            "hashes": {
+                "age_modifier": {
+                    "url": resolve_download_url("models-3.1.0", "styleganex_age.hash"),
+                    "path": resolve_relative_path(
+                        "../.assets/models/styleganex_age.hash"
+                    ),
                 }
             },
-            'sources': {
-                'age_modifier': {
-                    'url': resolve_download_url('models-3.1.0', 'styleganex_age.onnx'),
-                    'path': resolve_relative_path('../.assets/models/styleganex_age.onnx')
+            "sources": {
+                "age_modifier": {
+                    "url": resolve_download_url("models-3.1.0", "styleganex_age.onnx"),
+                    "path": resolve_relative_path(
+                        "../.assets/models/styleganex_age.onnx"
+                    ),
                 }
             },
-            'templates': {
-                'target': 'ffhq_512',
-                'target_with_background': 'styleganex_512'
+            "templates": {
+                "target": "ffhq_512",
+                "target_with_background": "styleganex_512",
             },
-            'sizes': {
-                'target': (256, 256),
-                'target_with_background': (AGE_BG_SIZE, AGE_BG_SIZE)
-            }
+            "sizes": {
+                "target": (256, 256),
+                "target_with_background": (AGE_BG_SIZE, AGE_BG_SIZE),
+            },
         }
     }
 
 
 def get_model_options() -> ModelOptions:
-    model_name = state_manager.get_item('age_modifier_model')
-    return create_static_model_set('full').get(model_name)
+    model_name = state_manager.get_item("age_modifier_model")
+    return create_static_model_set("full").get(model_name)
 
 
 # ========== 推理池 ==========
 def get_inference_pool() -> InferencePool:
-    model_names = [state_manager.get_item('age_modifier_model')]
-    model_source_set = get_model_options().get('sources')
+    model_names = [state_manager.get_item("age_modifier_model")]
+    model_source_set = get_model_options().get("sources")
     return inference_manager.get_inference_pool(__name__, model_names, model_source_set)
 
 
 def clear_inference_pool() -> None:
-    model_names = [state_manager.get_item('age_modifier_model')]
+    model_names = [state_manager.get_item("age_modifier_model")]
     inference_manager.clear_inference_pool(__name__, model_names)
 
 
 # ========== CLI ==========
 def register_args(program: ArgumentParser) -> None:
-    group_processors = find_argument_group(program, 'processors')
+    group_processors = find_argument_group(program, "processors")
     if group_processors:
         group_processors.add_argument(
-            '--age-modifier-model',
-            help=wording.get('help.age_modifier_model'),
-            default=config.get_str_value('processors', 'age_modifier_model', 'styleganex_age'),
-            choices=processors_choices.age_modifier_models
+            "--age-modifier-model",
+            help=wording.get("help.age_modifier_model"),
+            default=config.get_str_value(
+                "processors", "age_modifier_model", "styleganex_age"
+            ),
+            choices=processors_choices.age_modifier_models,
         )
         group_processors.add_argument(
-            '--age-modifier-direction',
-            help=wording.get('help.age_modifier_direction'),
+            "--age-modifier-direction",
+            help=wording.get("help.age_modifier_direction"),
             type=int,
-            default=config.get_int_value('processors', 'age_modifier_direction', '0'),
+            default=config.get_int_value("processors", "age_modifier_direction", "0"),
             choices=processors_choices.age_modifier_direction_range,
-            metavar=create_int_metavar(processors_choices.age_modifier_direction_range)
+            metavar=create_int_metavar(processors_choices.age_modifier_direction_range),
         )
-        facefusion.jobs.job_store.register_step_keys(['age_modifier_model', 'age_modifier_direction'])
+        facefusion.jobs.job_store.register_step_keys(
+            ["age_modifier_model", "age_modifier_direction"]
+        )
 
 
 def apply_args(args: Args, apply_state_item: ApplyStateItem) -> None:
-    apply_state_item('age_modifier_model', args.get('age_modifier_model'))
-    apply_state_item('age_modifier_direction', args.get('age_modifier_direction'))
+    apply_state_item("age_modifier_model", args.get("age_modifier_model"))
+    apply_state_item("age_modifier_direction", args.get("age_modifier_direction"))
 
 
 # ========== 预检 / 预处理 ==========
 def pre_check() -> bool:
-    model_hash_set = get_model_options().get('hashes')
-    model_source_set = get_model_options().get('sources')
-    return conditional_download_hashes(model_hash_set) and conditional_download_sources(model_source_set)
+    model_hash_set = get_model_options().get("hashes")
+    model_source_set = get_model_options().get("sources")
+    return conditional_download_hashes(model_hash_set) and conditional_download_sources(
+        model_source_set
+    )
 
 
 def pre_process(mode: ProcessMode) -> bool:
-    if mode in ['output', 'preview'] and not is_image(state_manager.get_item('target_path')) and not is_video(state_manager.get_item('target_path')):
-        logger.error(wording.get('choose_image_or_video_target') + wording.get('exclamation_mark'), __name__)
+    if (
+        mode in ["output", "preview"]
+        and not is_image(state_manager.get_item("target_path"))
+        and not is_video(state_manager.get_item("target_path"))
+    ):
+        logger.error(
+            wording.get("choose_image_or_video_target")
+            + wording.get("exclamation_mark"),
+            __name__,
+        )
         return False
-    if mode == 'output' and not in_directory(state_manager.get_item('output_path')):
-        logger.error(wording.get('specify_image_or_video_output') + wording.get('exclamation_mark'), __name__)
+    if mode == "output" and not in_directory(state_manager.get_item("output_path")):
+        logger.error(
+            wording.get("specify_image_or_video_output")
+            + wording.get("exclamation_mark"),
+            __name__,
+        )
         return False
-    if mode == 'output' and not same_file_extension(state_manager.get_item('target_path'), state_manager.get_item('output_path')):
-        logger.error(wording.get('match_target_and_output_extension') + wording.get('exclamation_mark'), __name__)
+    if mode == "output" and not same_file_extension(
+        state_manager.get_item("target_path"), state_manager.get_item("output_path")
+    ):
+        logger.error(
+            wording.get("match_target_and_output_extension")
+            + wording.get("exclamation_mark"),
+            __name__,
+        )
         return False
     return True
 
@@ -129,9 +193,9 @@ def post_process() -> None:
     read_static_image.cache_clear()
     read_static_video_frame.cache_clear()
     video_manager.clear_video_pool()
-    if state_manager.get_item('video_memory_strategy') in ['strict', 'moderate']:
+    if state_manager.get_item("video_memory_strategy") in ["strict", "moderate"]:
         clear_inference_pool()
-    if state_manager.get_item('video_memory_strategy') == 'strict':
+    if state_manager.get_item("video_memory_strategy") == "strict":
         content_analyser.clear_inference_pool()
         face_classifier.clear_inference_pool()
         face_detector.clear_inference_pool()
@@ -148,16 +212,16 @@ def _pick_valid_template(name: str | None) -> str:
     """
     candidates = set(WARP_TEMPLATE_SET.keys())
     if not candidates:
-        return 'ffhq_512'  # 理论上不会发生
+        return "ffhq_512"  # 理论上不会发生
 
-    s = (str(name) if name else '').replace(' ', '_')
+    s = (str(name) if name else "").replace(" ", "_")
     if s in candidates:
         return s
     for k in candidates:
-        if 'styleganex' in k:
+        if "styleganex" in k:
             return k
     for k in candidates:
-        if 'ffhq' in k:
+        if "ffhq" in k:
             return k
     return next(iter(candidates))
 
@@ -177,37 +241,49 @@ def _norm_size(val, default_edge: int) -> tuple[int, int]:
 def prepare_vision_frame(vision_frame: VisionFrame) -> VisionFrame:
     vision_frame = vision_frame[:, :, ::-1] / 255.0
     vision_frame = (vision_frame - 0.5) / 0.5
-    vision_frame = numpy.expand_dims(vision_frame.transpose(2, 0, 1), axis=0).astype(numpy.float32)
+    vision_frame = numpy.expand_dims(vision_frame.transpose(2, 0, 1), axis=0).astype(
+        numpy.float32
+    )
     return vision_frame
 
 
-def normalize_extend_frame(extend_vision_frame: VisionFrame, size_target_wh: tuple[int, int]) -> VisionFrame:
+def normalize_extend_frame(
+    extend_vision_frame: VisionFrame, size_target_wh: tuple[int, int]
+) -> VisionFrame:
     extend_vision_frame = numpy.clip(extend_vision_frame, -1, 1)
     extend_vision_frame = (extend_vision_frame + 1) / 2
     extend_vision_frame = extend_vision_frame.transpose(1, 2, 0).clip(0, 255)
-    extend_vision_frame = (extend_vision_frame * 255.0)
+    extend_vision_frame = extend_vision_frame * 255.0
     extend_vision_frame = extend_vision_frame.astype(numpy.uint8)[:, :, ::-1]
     extend_vision_frame = cv2.resize(
-        extend_vision_frame, (size_target_wh[0] * 4, size_target_wh[1] * 4), interpolation=cv2.INTER_AREA
+        extend_vision_frame,
+        (size_target_wh[0] * 4, size_target_wh[1] * 4),
+        interpolation=cv2.INTER_AREA,
     )
     return extend_vision_frame
 
 
 # ========== 推理 ==========
-def forward(crop_vision_frame: VisionFrame, extend_vision_frame: VisionFrame, age_modifier_direction: AgeModifierDirection) -> VisionFrame:
-    age_modifier = get_inference_pool().get('age_modifier')
+def forward(
+    crop_vision_frame: VisionFrame,
+    extend_vision_frame: VisionFrame,
+    age_modifier_direction: AgeModifierDirection,
+) -> VisionFrame:
+    age_modifier = get_inference_pool().get("age_modifier")
     age_modifier_inputs = {}
 
-    if is_macos() and has_execution_provider('coreml'):
-        age_modifier.set_providers([facefusion.choices.execution_provider_set.get('cpu')])
+    if is_macos() and has_execution_provider("coreml"):
+        age_modifier.set_providers(
+            [facefusion.choices.execution_provider_set.get("cpu")]
+        )
 
     # 兼容不同输入名
     for age_modifier_input in age_modifier.get_inputs():
-        if age_modifier_input.name == 'target':
+        if age_modifier_input.name == "target":
             age_modifier_inputs[age_modifier_input.name] = crop_vision_frame
-        if age_modifier_input.name == 'target_with_background':
+        if age_modifier_input.name == "target_with_background":
             age_modifier_inputs[age_modifier_input.name] = extend_vision_frame
-        if age_modifier_input.name == 'direction':
+        if age_modifier_input.name == "direction":
             age_modifier_inputs[age_modifier_input.name] = age_modifier_direction
 
     with thread_semaphore():
@@ -219,14 +295,14 @@ def forward(crop_vision_frame: VisionFrame, extend_vision_frame: VisionFrame, ag
 # ========== 主处理 ==========
 def modify_age(target_face: Face, temp_vision_frame: VisionFrame) -> VisionFrame:
     model_opts = get_model_options()
-    model_templates = model_opts.get('templates') or {}
-    model_sizes = model_opts.get('sizes') or {}
+    model_templates = model_opts.get("templates") or {}
+    model_sizes = model_opts.get("sizes") or {}
 
-    face_landmark_5 = target_face.landmark_set.get('5/68').copy()
+    face_landmark_5 = target_face.landmark_set.get("5/68").copy()
 
     # target 分支（通常 256x256）
-    tmpl_target = _pick_valid_template(model_templates.get('target'))
-    size_target = _norm_size(model_sizes.get('target'), 256)
+    tmpl_target = _pick_valid_template(model_templates.get("target"))
+    size_target = _norm_size(model_sizes.get("target"), 256)
     crop_vision_frame, affine_matrix = warp_face_by_face_landmark_5(
         temp_vision_frame, face_landmark_5, tmpl_target, size_target
     )
@@ -234,11 +310,13 @@ def modify_age(target_face: Face, temp_vision_frame: VisionFrame) -> VisionFrame
     # 背景分支（期望 512x512）
     extend_face_landmark_5 = scale_face_landmark_5(face_landmark_5, 0.875)
     tmpl_bg = _pick_valid_template(
-        model_templates.get('target_with_background') or model_templates.get('target with background')
+        model_templates.get("target_with_background")
+        or model_templates.get("target with background")
     )
     size_bg_wh = _norm_size(
-        model_sizes.get('target_with_background') or model_sizes.get('target with background'),
-        AGE_BG_SIZE
+        model_sizes.get("target_with_background")
+        or model_sizes.get("target with background"),
+        AGE_BG_SIZE,
     )
     size_bg_edge = int(size_bg_wh[0])
 
@@ -249,14 +327,16 @@ def modify_age(target_face: Face, temp_vision_frame: VisionFrame) -> VisionFrame
 
     # 盒形遮罩
     box_mask = create_box_mask(
-        extend_vision_frame, state_manager.get_item('face_mask_blur'), (0, 0, 0, 0)
+        extend_vision_frame, state_manager.get_item("face_mask_blur"), (0, 0, 0, 0)
     )
     crop_masks = [box_mask]
 
     # 遮挡遮罩（warp 的 dsize 需要 (w,h)）
-    if 'occlusion' in state_manager.get_item('face_mask_types'):
+    if "occlusion" in state_manager.get_item("face_mask_types"):
         occlusion_mask = create_occlusion_mask(crop_vision_frame)
-        temp_matrix = merge_matrix([extend_affine_matrix, cv2.invertAffineTransform(affine_matrix)])
+        temp_matrix = merge_matrix(
+            [extend_affine_matrix, cv2.invertAffineTransform(affine_matrix)]
+        )
         occlusion_mask = cv2.warpAffine(occlusion_mask, temp_matrix, size_bg_wh)
         crop_masks.append(occlusion_mask)
 
@@ -266,29 +346,37 @@ def modify_age(target_face: Face, temp_vision_frame: VisionFrame) -> VisionFrame
 
     # 把 [-100,100] 映射到 [2.5,-2.5]
     age_modifier_direction = numpy.array(
-        numpy.interp(state_manager.get_item('age_modifier_direction'), [-100, 100], [2.5, -2.5])
+        numpy.interp(
+            state_manager.get_item("age_modifier_direction"), [-100, 100], [2.5, -2.5]
+        )
     ).astype(numpy.float32)
 
     # 推理
-    extend_vision_frame = forward(crop_vision_frame, extend_vision_frame, age_modifier_direction)
+    extend_vision_frame = forward(
+        crop_vision_frame, extend_vision_frame, age_modifier_direction
+    )
 
     # 后处理与贴回
     extend_vision_frame = normalize_extend_frame(extend_vision_frame, size_target)
-    extend_vision_frame = match_frame_color(extend_vision_frame_raw, extend_vision_frame)
+    extend_vision_frame = match_frame_color(
+        extend_vision_frame_raw, extend_vision_frame
+    )
 
     # 仿射缩放比例（用 x4 的 target 与 bg 尺寸边长比）
     extend_affine_matrix *= (size_target[0] * 4) / size_bg_edge
 
     crop_mask = numpy.minimum.reduce(crop_masks).clip(0, 1)
     crop_mask = cv2.resize(crop_mask, (size_target[0] * 4, size_target[1] * 4))
-    paste_vision_frame = paste_back(temp_vision_frame, extend_vision_frame, crop_mask, extend_affine_matrix)
+    paste_vision_frame = paste_back(
+        temp_vision_frame, extend_vision_frame, crop_mask, extend_affine_matrix
+    )
     return paste_vision_frame
 
 
 def process_frame(inputs: AgeModifierInputs) -> VisionFrame:
-    reference_vision_frame = inputs.get('reference_vision_frame')
-    target_vision_frame = inputs.get('target_vision_frame')
-    temp_vision_frame = inputs.get('temp_vision_frame')
+    reference_vision_frame = inputs.get("reference_vision_frame")
+    target_vision_frame = inputs.get("target_vision_frame")
+    temp_vision_frame = inputs.get("temp_vision_frame")
     target_faces = select_faces(reference_vision_frame, target_vision_frame)
 
     if target_faces:

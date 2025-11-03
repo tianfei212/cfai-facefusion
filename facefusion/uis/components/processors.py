@@ -2,7 +2,6 @@ from typing import List, Optional, Tuple
 import gradio  # 保持你项目原本的用法
 
 from facefusion import state_manager, wording
-from facefusion.filesystem import get_file_name, resolve_file_paths
 from facefusion.processors.core import get_processors_modules
 from facefusion.uis.core import register_ui_component
 
@@ -25,11 +24,12 @@ PROCESSORS_CHECKBOX_GROUP: Optional[gradio.CheckboxGroup] = None
 
 def _available_ids() -> List[str]:
     # 按磁盘扫描顺序，保持原项目行为
-    return [get_file_name(p) for p in resolve_file_paths('facefusion/processors/modules')]
+    # return [get_file_name(p) for p in resolve_file_paths('facefusion/processors/modules')]
+    return ["face_swapper", "deep_swapper"]
 
 
 def _current_ids() -> List[str]:
-    cur = state_manager.get_item('processors')
+    cur = state_manager.get_item("processors")
     return cur if isinstance(cur, list) else []
 
 
@@ -41,16 +41,19 @@ def _ordered_ids(selected_ids: List[str], available_ids: List[str]) -> List[str]
     """
     seen = set()
     out: List[str] = []
-    for pid in (selected_ids or []):
+    for pid in selected_ids or []:
         if pid in available_ids and pid not in seen:
-            out.append(pid); seen.add(pid)
+            out.append(pid)
+            seen.add(pid)
     for pid in available_ids:
         if pid not in seen:
             out.append(pid)
     return out
 
 
-def _make_choices(selected_ids: List[str], available_ids: List[str]) -> List[Tuple[str, str]]:
+def _make_choices(
+    selected_ids: List[str], available_ids: List[str]
+) -> List[Tuple[str, str]]:
     """
     返回 (label, value)：
     - label 显示中文
@@ -66,11 +69,11 @@ def render() -> None:
     selected_ids = [x for x in _current_ids() if x in all_ids]
 
     PROCESSORS_CHECKBOX_GROUP = gradio.CheckboxGroup(
-        label=wording.get('uis.processors_checkbox_group'),
+        label=wording.get("uis.processors_checkbox_group"),
         choices=_make_choices(selected_ids, all_ids),  # (中文, 内部ID)
-        value=selected_ids                              # 内部ID
+        value=selected_ids,  # 内部ID
     )
-    register_ui_component('processors_checkbox_group', PROCESSORS_CHECKBOX_GROUP)
+    register_ui_component("processors_checkbox_group", PROCESSORS_CHECKBOX_GROUP)
 
 
 def listen() -> None:
@@ -79,7 +82,7 @@ def listen() -> None:
     PROCESSORS_CHECKBOX_GROUP.change(
         update_processors,
         inputs=PROCESSORS_CHECKBOX_GROUP,
-        outputs=PROCESSORS_CHECKBOX_GROUP
+        outputs=PROCESSORS_CHECKBOX_GROUP,
     )
 
 
@@ -102,7 +105,7 @@ def update_processors(new_selected_ids: List[str]):
         ok = True
         for m in get_processors_modules([pid]):
             try:
-                if hasattr(m, 'pre_check') and not m.pre_check():
+                if hasattr(m, "pre_check") and not m.pre_check():
                     ok = False
                     break
             except Exception:
@@ -117,17 +120,16 @@ def update_processors(new_selected_ids: List[str]):
     # 清理被移除的
     removed = [x for x in old_ids if x not in final_ids]
     for m in get_processors_modules(removed):
-        if hasattr(m, 'clear_inference_pool'):
+        if hasattr(m, "clear_inference_pool"):
             try:
                 m.clear_inference_pool()
             except Exception:
                 pass
 
     # 写状态（只存内部ID）
-    state_manager.set_item('processors', final_ids)
+    state_manager.set_item("processors", final_ids)
 
     # 更新UI：顺序=已选置前（保持原顺序）+ 扫描顺序补齐
     return gradio.update(
-        choices=_make_choices(final_ids, all_ids_list),
-        value=final_ids
+        choices=_make_choices(final_ids, all_ids_list), value=final_ids
     )

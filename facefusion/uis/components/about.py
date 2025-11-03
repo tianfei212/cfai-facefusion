@@ -1,41 +1,41 @@
-import random
 from typing import Optional
 
 import gradio
 
-from facefusion import metadata, wording
+from facefusion import metadata
 
-METADATA_BUTTON : Optional[gradio.Button] = None
-ACTION_BUTTON : Optional[gradio.Button] = None
+METADATA_BUTTON: Optional[gradio.Button] = None
+ACTION_BUTTON: Optional[gradio.Button] = None
 
 
 def render() -> None:
-	global METADATA_BUTTON
-	global ACTION_BUTTON
+    global METADATA_BUTTON
+    global ACTION_BUTTON
 
-	action = random.choice(
-	[
-		{
-			'wording': wording.get('about.become_a_member'),
-			'url': 'https://youtu.be/iYdQOBLzRTk?si=BnNqxTPQk4vHRUKJ'
-		},
-		{
-			'wording': wording.get('about.join_our_community'),
-			'url': 'https://youtu.be/iYdQOBLzRTk?si=BnNqxTPQk4vHRUKJ'
-		},
-		{
-			'wording': wording.get('about.read_the_documentation'),
-			'url': 'https://youtu.be/iYdQOBLzRTk?si=BnNqxTPQk4vHRUKJ'
-		}
-	])
+    # action = random.choice(
+    #     [
+    #         {
+    #             "wording": wording.get("about.become_a_member"),
+    #             "url": "https://youtu.be/iYdQOBLzRTk?si=BnNqxTPQk4vHRUKJ",
+    #         },
+    #         {
+    #             "wording": wording.get("about.join_our_community"),
+    #             "url": "https://youtu.be/iYdQOBLzRTk?si=BnNqxTPQk4vHRUKJ",
+    #         },
+    #         {
+    #             "wording": wording.get("about.read_the_documentation"),
+    #             "url": "https://youtu.be/iYdQOBLzRTk?si=BnNqxTPQk4vHRUKJ",
+    #         },
+    #     ]
+    # )
 
-	METADATA_BUTTON = gradio.Button(
-		value = metadata.get('name') + ' ' + metadata.get('version'),
-		variant = 'primary',
-		link = metadata.get('url')
-	)
-	ACTION_BUTTON = gradio.Button(
-		value = action.get('wording'),
-		link = action.get('url'),
-		size = 'sm'
-	)
+    METADATA_BUTTON = gradio.Button(
+        value=metadata.get("name") + " " + metadata.get("version"),
+        variant="primary",
+        link=metadata.get("url"),
+    )
+    # ACTION_BUTTON = gradio.Button(
+    # 	value = action.get('wording'),
+    # 	link = action.get('url'),
+    # 	size = 'sm'
+    # )
