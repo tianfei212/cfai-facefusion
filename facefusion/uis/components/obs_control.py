@@ -8,6 +8,7 @@ from facefusion.obs_integration import (
     create_client,
     disconnect_client,
     update_first_browser_source_url,
+    update_first_video_source_file,
     default_mjpeg_url,
 )
 import obsws_python as obs
@@ -125,7 +126,72 @@ def render() -> None:
             s = _load_settings()
             return s["host"], int(s["port"]), s["password"], s["url"]
 
-        # gr.on(triggers=[obs_accordion.], fn=_do_load, inputs=None, outputs=[host, port, password, url])
+        # Gradio v5 页面加载事件：刷新时自动填充值
+        # gr.on(triggers=[gr.PageLoad], fn=_do_load, inputs=None, outputs=[host, port, password, url])
+
+        # —— B 阶段：迁移假工程的背景视频控制界面到此面板 ——
+        def _get_video_files() -> list[str]:
+            bgs_path = Path("fake_facefusion/bgs")
+            if not bgs_path.exists():
+                return []
+            video_extensions = {".mp4", ".avi", ".mov", ".mkv", ".wmv", ".flv", ".webm"}
+            files: list[str] = []
+            for fp in bgs_path.rglob("*"):
+                if fp.is_file() and fp.suffix.lower() in video_extensions:
+                    files.append(str(fp.absolute()))
+            return files
+
+        with gr.Row():
+            gr.Markdown("## 背景视频控制（迁移自 fake_facefusion/gradio_demo.py）")
+
+        with gr.Row():
+            gallery = gr.Gallery(
+                value=_get_video_files(),
+                label="选择视频文件",
+                show_label=True,
+                columns=4,
+                rows=3,
+                height="auto",
+                object_fit="contain",
+                allow_preview=True,
+            )
+            video_result = gr.Textbox(label="操作结果", interactive=False)
+
+        with gr.Row():
+            refresh_btn = gr.Button("🔄 刷新视频列表", variant="secondary")
+            refresh_result = gr.Textbox(label="刷新结果", interactive=False)
+
+        def _on_video_select(evt: gr.SelectData) -> str:
+            try:
+                if _client is None:
+                    return "❌ 未连接 OBS"
+                selected = evt.value
+                file_path: Optional[str] = None
+                if isinstance(selected, str):
+                    file_path = selected
+                elif isinstance(selected, dict):
+                    # 兼容多种返回结构
+                    file_path = (
+                        selected.get("video", {}).get("path")
+                        or selected.get("path")
+                        or selected.get("name")
+                    )
+                if not file_path:
+                    return "❌ 未解析所选视频路径"
+                ok = update_first_video_source_file(_client, file_path)
+                if ok:
+                    return f"✅ 成功更新 OBS 视频源: {Path(file_path).name}"
+                else:
+                    return "❌ 更新失败：未找到 ffmpeg_source 类型的媒体源"
+            except Exception as e:
+                return f"❌ 错误：{e}"
+
+        def _refresh_videos():
+            files = _get_video_files()
+            return files, ("✅ 视频列表已刷新" if files else "⚠️ 未找到视频文件")
+
+        gallery.select(fn=_on_video_select, outputs=video_result)
+        refresh_btn.click(fn=_refresh_videos, outputs=[gallery, refresh_result])
 
 
 def listen() -> None:

@@ -58,13 +58,13 @@ def update_first_browser_source_url(
     更新第一个 browser_source 输入的 URL 设置。
     调用 obsws-python 标准 API：get_input_list + set_input_settings。
     """
-    response = client.get_input_list(kind="browser_source")
+    response = client.get_input_list(kind="ffmpeg_source")
     inputs = response.inputs
     if inputs:
-        input_name = inputs[0]["inputName"]
+        input_name = inputs[-1]["inputName"]
         client.set_input_settings(
             name=input_name,
-            settings={"url": url},
+            settings={"input": url, "is_local_file": False},
             overlay=reinitialize,
         )
         return True
