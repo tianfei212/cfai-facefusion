@@ -43,7 +43,8 @@ def update_first_video_source_file(
     if inputs:
         input_name = inputs[0]["inputName"]
         client.set_input_settings(
-            name=input_name,
+            # TODO： 更灵活的配置，支持自定义输入源名称
+            name="背景",
             settings={"local_file": video_abs_path},
             overlay=reinitialize,
         )
@@ -63,7 +64,8 @@ def update_first_browser_source_url(
     if inputs:
         input_name = inputs[-1]["inputName"]
         client.set_input_settings(
-            name=input_name,
+            # TODO： 更灵活的配置，支持自定义输入源名称
+            name="换脸视频流",
             settings={"input": url, "is_local_file": False},
             overlay=reinitialize,
         )
