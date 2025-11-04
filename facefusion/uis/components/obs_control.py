@@ -5,6 +5,7 @@ import json
 
 from facefusion import logger
 from facefusion.obs_integration import (
+    change_heibai_state,
     create_client,
     disconnect_client,
     update_first_browser_source_url,
@@ -30,12 +31,14 @@ def _load_settings() -> dict:
         if SETTINGS_PATH.exists():
             with SETTINGS_PATH.open("r", encoding="utf-8") as f:
                 data = json.load(f)
-                default.update({
-                    "host": data.get("host", default["host"]),
-                    "port": int(data.get("port", default["port"])),
-                    "password": data.get("password", default["password"]),
-                    "url": data.get("url", default["url"]),
-                })
+                default.update(
+                    {
+                        "host": data.get("host", default["host"]),
+                        "port": int(data.get("port", default["port"])),
+                        "password": data.get("password", default["password"]),
+                        "url": data.get("url", default["url"]),
+                    }
+                )
     except Exception:
         # 保持简洁：读取失败则回退默认
         pass
@@ -84,10 +87,17 @@ def _do_bind(url: str) -> str:
         try:
             if SETTINGS_PATH.exists():
                 data = _load_settings()
-                _save_settings(data.get("host", "127.0.0.1"), int(data.get("port", 4455)), data.get("password", ""), url)
+                _save_settings(
+                    data.get("host", "127.0.0.1"),
+                    int(data.get("port", 4455)),
+                    data.get("password", ""),
+                    url,
+                )
         except Exception:
             pass
-        return "✅ 已绑定到第一个浏览器源" if ok else "❌ 未找到浏览器源（browser_source）"
+        return (
+            "✅ 已绑定到第一个浏览器源" if ok else "❌ 未找到浏览器源（browser_source）"
+        )
     except Exception as e:
         return f"❌ 绑定失败：{e}"
 
@@ -97,13 +107,24 @@ def _do_save(host: str, port: int, password: str, url: str) -> str:
     return "✅ 已保存设置"
 
 
+def _change_bw() -> str:
+    if _client is None:
+        return "❌ 未连接 OBS"
+    ok = change_heibai_state(_client)
+    if ok is None:
+        return "❌ 更新出错"
+    return "✅ 已应用黑白效果" if ok else "✅ 已关闭黑白效果"
+
+
 def render() -> None:
     with gr.Accordion("OBS 控制", open=True) as obs_accordion:
         settings = _load_settings()
         with gr.Row():
             host = gr.Textbox(label="Host", value=settings["host"], scale=2)
             port = gr.Number(label="Port", value=settings["port"], precision=0, scale=1)
-            password = gr.Textbox(label="Password", type="password", value=settings["password"], scale=2)
+            password = gr.Textbox(
+                label="Password", type="password", value=settings["password"], scale=2
+            )
 
         with gr.Row():
             url = gr.Textbox(label="URL", value=settings["url"], scale=3)
@@ -114,12 +135,22 @@ def render() -> None:
             btn_bind = gr.Button("绑定 MJPEG 到第一个浏览器源", variant="primary")
             btn_save = gr.Button("保存设置")
 
-        status = gr.Markdown("建议先点击 Start Webcam 再绑定 MJPEG。\n依赖：`./python.link -m pip install obsws-python`")
+        status = gr.Markdown(
+            "建议先点击 Start Webcam 再绑定 MJPEG。\n依赖：`./python.link -m pip install obsws-python`"
+        )
 
-        btn_connect.click(_do_connect, inputs=[host, port, password, url], outputs=status)
+        btn_connect.click(
+            _do_connect, inputs=[host, port, password, url], outputs=status
+        )
         btn_disconnect.click(_do_disconnect, inputs=None, outputs=status)
         btn_bind.click(_do_bind, inputs=[url], outputs=status)
         btn_save.click(_do_save, inputs=[host, port, password, url], outputs=status)
+
+        # —— 彩色变黑白（迁移按钮） ——
+        with gr.Row():
+            bw_btn = gr.Button("🎚️ 开启/关闭黑白效果", variant="secondary")
+
+        bw_btn.click(_change_bw, outputs=status)
 
         # 页面加载时自动从持久化文件填充（解决刷新后丢失的问题）
         def _do_load():

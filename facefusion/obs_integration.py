@@ -77,3 +77,32 @@ def default_mjpeg_url() -> str:
     可在后续阶段做端口与路径的自动探测或配置化。
     """
     return "http://127.0.0.1:7860/monitor/mjpeg"
+
+def change_heibai_state(client: obs.ReqClient) -> bool|None:
+    """
+    遍历所有输入源，查找名为“黑白”的滤镜，将其启用状态取反。
+    如果该滤镜当前是启用的，则禁用；如果禁用，则启用。
+    """
+    input_response = client.get_input_list()
+
+    for input_info in input_response.inputs:
+        input_name = input_info["inputName"]
+
+        final_enabled = None
+        try:
+            # 获取该输入源的所有滤镜
+            filters_response = client.get_source_filter_list(name=input_name)
+            for f in filters_response.filters:
+                if f["filterName"] == "黑白":
+                    # 当前启用状态
+                    enabled = f["filterEnabled"]
+                    # 切换启用状态
+                    client.set_source_filter_enabled(
+                        source_name=input_name,
+                        filter_name="黑白",
+                        enabled=not enabled
+                    )
+                    final_enabled = not enabled
+            return final_enabled
+        except obs.error.OBSSDKError:
+            return None
