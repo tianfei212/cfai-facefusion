@@ -95,10 +95,15 @@ def run(ui: gradio.Blocks) -> None:
         favicon_path="facefusion.ico",
         inbrowser=state_manager.get_item("open_browser"),
         prevent_thread_lock=True,
+        server_name="0.0.0.0",
     )
 
     try:
-        app = getattr(demo, "app", None) or getattr(ui, "server_app", None) or getattr(ui, "app", None)
+        app = (
+            getattr(demo, "app", None)
+            or getattr(ui, "server_app", None)
+            or getattr(ui, "app", None)
+        )
         if app is not None:
             mount_monitor(app, route_path="/monitor/mjpeg", frame_interval_sec=0.04)
     except Exception:
@@ -109,5 +114,6 @@ def run(ui: gradio.Blocks) -> None:
         demo.block()
     except Exception:
         import time
+
         while True:
             time.sleep(1)
