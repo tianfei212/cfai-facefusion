@@ -192,8 +192,10 @@ def render() -> None:
             refresh_btn = gr.Button("🔄 刷新视频列表", variant="secondary")
             refresh_result = gr.Textbox(label="刷新结果", interactive=False)
 
-        def _on_video_select(evt: gr.SelectData) -> str:
+        def _on_video_select(evt: gr.SelectData, req: gr.Request) -> str:
             try:
+                client_ip = req.client.host
+                print(client_ip)
                 if _client is None:
                     return "❌ 未连接 OBS"
                 selected = evt.value
@@ -209,6 +211,12 @@ def render() -> None:
                     )
                 if not file_path:
                     return "❌ 未解析所选视频路径"
+                if client_ip != "127.0.0.1" and client_ip != "localhost":
+                    # 如果是从远端发过来的换背景请求，将其路径安置在指定位置
+                    # TODO:添加一个下载按钮，之后指定路径到下载文件夹。
+                    video_name = Path(file_path).name
+                    temp_path = Path("D:\\fake_facefusion\\bgs") / video_name
+                    file_path = str(temp_path)
                 ok = update_first_video_source_file(_client, file_path)
                 if ok:
                     return f"✅ 成功更新 OBS 视频源: {Path(file_path).name}"
