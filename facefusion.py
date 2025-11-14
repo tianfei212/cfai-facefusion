@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import os
 import time
-import pyfiglet
 
+import pyfiglet
 
 # 清屏（可选）
 os.system("cls" if os.name == "nt" else "clear")
