@@ -30,7 +30,7 @@ def load_ui_layout_module(ui_layout: str) -> Any:
         logger.error(
             wording.get("ui_layout_not_loaded").format(ui_layout=ui_layout), __name__
         )
-        logger.debug(exception.msg, __name__)
+        logger.error(exception.msg, __name__)
         hard_exit(1)
     except NotImplementedError:
         logger.error(

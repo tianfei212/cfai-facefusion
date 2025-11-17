@@ -22,7 +22,6 @@ from facefusion.uis.monitor_integration import save_latest_frame
 
 SOURCE_FILE: Optional[gradio.File] = None
 SOURCE_DIR_UPLOAD: Optional[gradio.File] = None
-SOURCE_FILES_UPLOAD: Optional[gradio.File] = None
 SOURCE_GALLERY: Optional[gradio.Gallery] = None
 WEBCAM_IMAGE: Optional[gradio.Image] = None
 WEBCAM_START_BUTTON: Optional[gradio.Button] = None
@@ -36,7 +35,6 @@ DEBUG_TOGGLE: Optional[gradio.Checkbox] = None
 def render() -> None:
     global SOURCE_FILE
     global SOURCE_DIR_UPLOAD
-    global SOURCE_FILES_UPLOAD
     global SOURCE_GALLERY
     global WEBCAM_IMAGE
     global WEBCAM_START_BUTTON
@@ -59,13 +57,6 @@ def render() -> None:
         label="选择文件夹",
         file_count="directory",
         type="filepath",
-    )
-    SOURCE_FILES_UPLOAD = gradio.File(
-        label="选择图片文件",
-        file_count="multiple",
-        type="filepath",
-        file_types=["image"],
-        visible=False,
     )
     # —— 调试面板开关（系统设置） ——
     debug_enabled_default = bool(state_manager.get_item("debug_enabled") or False)
@@ -126,12 +117,6 @@ def listen() -> None:
         SOURCE_DIR_UPLOAD.change(
             update_gallery_from_dir_upload,
             inputs=SOURCE_DIR_UPLOAD,
-            outputs=[SOURCE_GALLERY, DIR_UPLOAD_DEBUG],
-        )
-    if SOURCE_FILES_UPLOAD and SOURCE_GALLERY:
-        SOURCE_FILES_UPLOAD.change(
-            update_gallery_from_files_upload,
-            inputs=SOURCE_FILES_UPLOAD,
             outputs=[SOURCE_GALLERY, DIR_UPLOAD_DEBUG],
         )
     # 调试开关事件：切换调试组件可见性并持久化
@@ -293,30 +278,7 @@ def update_gallery_from_dir_upload(dir_value: Any):
     )
 
 
-def update_gallery_from_files_upload(files_value: Any):
-    image_paths: List[str] = []
-    raw = files_value
-    if isinstance(files_value, list):
-        for item in files_value:
-            if isinstance(item, str):
-                image_paths.append(item)
-            elif isinstance(item, dict):
-                candidate = (
-                    item.get("path") or item.get("file_path") or item.get("name")
-                )
-                if isinstance(candidate, str):
-                    image_paths.append(candidate)
-    elif isinstance(files_value, str):
-        image_paths = [files_value]
-    debug_payload = {
-        "raw": raw,
-        "resolved_files_count": len(image_paths),
-    }
-    image_paths = [p for p in image_paths if _is_image_path(p)]
-    return (
-        gradio.update(value=image_paths, visible=True),
-        gradio.update(value=json.dumps(debug_payload, ensure_ascii=False, indent=2)),
-    )
+    
 
 
 def _is_image_path(p: str) -> bool:

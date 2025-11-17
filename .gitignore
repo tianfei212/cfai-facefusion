@@ -11,3 +11,4 @@ run.log
 fake_facefusion
 *.md
 .temp/facefusion/obs_settings.json
+uv.lock
