@@ -53,49 +53,84 @@ def render() -> None:
     )
 
     # 选择文件夹（使用 File 组件的 directory 模式）
-    SOURCE_DIR_UPLOAD = gradio.File(
-        label="选择文件夹",
-        file_count="directory",
-        type="filepath",
-    )
-    # —— 调试面板开关（系统设置） ——
-    debug_enabled_default = bool(state_manager.get_item("debug_enabled") or False)
-    with gradio.Accordion("系统设置", open=False):
-        DEBUG_TOGGLE = gradio.Checkbox(
-            label="显示调试面板",
-            value=debug_enabled_default,
-        )
-    # Gallery 展示文件夹内的所有图片文件；始终可见
+    with gradio.Row() as IMAGE_UPLOAD_PANEL:
+        with gradio.Column():
+            # 计算初始可见性（目录与调试开关），Gallery 默认不显示，且移出当前 Row
+            try:
+                debug_enabled_default = bool(
+                    state_manager.get_item("debug_enabled") or False
+                )
+            except Exception:
+                debug_enabled_default = False
+
+            # 可见性规则调整：
+            # - Gallery 默认隐藏，文件夹上传成功后再显示；且不在此 Row
+            # - 目录与调试开关按之前逻辑：
+            #   - debug=true → 显示目录与调试开关
+            #   - debug=false 且已有文件上传 → 隐藏目录与调试开关
+            #   - 其他情况 → 显示目录与调试开关
+            show_dir = True
+            show_toggle = True
+            try:
+                if debug_enabled_default:
+                    show_dir = True
+                    show_toggle = True
+                elif has_source_image:
+                    show_dir = False
+                    show_toggle = False
+                else:
+                    show_dir = True
+                    show_toggle = True
+            except Exception:
+                # 遇到读取状态异常，回退到默认显示
+                show_dir = True
+                show_toggle = True
+
+            SOURCE_DIR_UPLOAD = gradio.File(
+                label="选择文件夹",
+                file_count="directory",
+                type="filepath",
+                visible=show_dir,
+            )
+            # —— 调试面板开关（系统设置） ——
+            DEBUG_TOGGLE = gradio.Checkbox(
+                label="显示调试面板",
+                value=debug_enabled_default,
+                visible=show_toggle,
+            )
+    # Gallery 移出 Row，默认不显示，上传后再显示
     SOURCE_GALLERY = gradio.Gallery(
         label="源图片库",
         object_fit="cover",
         allow_preview=True,
-        columns=7,
-        visible=True,
+        columns=4,
+        height=420,  # 增加高度，让每张人脸更大
+        visible=False,
     )
     initial_paths = state_manager.get_item("source_paths") if has_source_image else None
     initial_display = initial_paths[0] if initial_paths else ""
-    SOURCE_PATH_DISPLAY = gradio.Textbox(
-        label="源文件路径",
-        value=initial_display,
-        interactive=False,
-        lines=1,
-        visible=debug_enabled_default,
-    )
-    GALLERY_EVT_DEBUG = gradio.Textbox(
-        label="Gallery 事件调试",
-        value="",
-        interactive=False,
-        lines=2,
-        visible=debug_enabled_default,
-    )
-    DIR_UPLOAD_DEBUG = gradio.Textbox(
-        label="目录上传调试",
-        value="",
-        interactive=False,
-        lines=2,
-        visible=debug_enabled_default,
-    )
+    with gradio.Column() as DEBUG_PANEL:
+        SOURCE_PATH_DISPLAY = gradio.Textbox(
+            label="源文件路径",
+            value=initial_display,
+            interactive=False,
+            lines=1,
+            visible=debug_enabled_default,
+        )
+        GALLERY_EVT_DEBUG = gradio.Textbox(
+            label="Gallery 事件调试",
+            value="",
+            interactive=False,
+            lines=2,
+            visible=debug_enabled_default,
+        )
+        DIR_UPLOAD_DEBUG = gradio.Textbox(
+            label="目录上传调试",
+            value="",
+            interactive=False,
+            lines=2,
+            visible=debug_enabled_default,
+        )
     WEBCAM_IMAGE = gradio.Image(
         label=wording.get("uis.webcam_image"), format="jpeg", visible=False
     )
@@ -117,14 +152,21 @@ def listen() -> None:
         SOURCE_DIR_UPLOAD.change(
             update_gallery_from_dir_upload,
             inputs=SOURCE_DIR_UPLOAD,
-            outputs=[SOURCE_GALLERY, DIR_UPLOAD_DEBUG],
+            outputs=[SOURCE_GALLERY, DIR_UPLOAD_DEBUG, SOURCE_DIR_UPLOAD, DEBUG_TOGGLE],
         )
     # 调试开关事件：切换调试组件可见性并持久化
     if DEBUG_TOGGLE:
         DEBUG_TOGGLE.change(
             on_debug_toggle,
-            inputs=DEBUG_TOGGLE,
-            outputs=[SOURCE_PATH_DISPLAY, GALLERY_EVT_DEBUG, DIR_UPLOAD_DEBUG],
+            inputs=[DEBUG_TOGGLE, SOURCE_GALLERY],
+            outputs=[
+                SOURCE_PATH_DISPLAY,
+                GALLERY_EVT_DEBUG,
+                DIR_UPLOAD_DEBUG,
+                SOURCE_DIR_UPLOAD,
+                DEBUG_TOGGLE,
+                SOURCE_GALLERY,
+            ],
         )
 
     # Gallery 选择驱动 Source_file（保持不可见）及全局 source_paths
@@ -241,11 +283,30 @@ def update_gallery_from_dir_upload(dir_value: Any):
             "resolved_dir_path": None,
             "image_count": len(image_paths),
         }
+        # 依据当前 debug 状态与是否有图片来更新可见性
+        try:
+            debug_enabled_current = bool(
+                state_manager.get_item("debug_enabled") or False
+            )
+        except Exception:
+            debug_enabled_current = False
+        if debug_enabled_current:
+            show_dir = True
+            show_toggle = True
+        else:
+            if len(image_paths) > 0:
+                show_dir = False
+                show_toggle = False
+            else:
+                show_dir = True
+                show_toggle = True
         return (
-            gradio.update(value=image_paths, visible=True),
+            gradio.update(value=image_paths, visible=len(image_paths) > 0),
             gradio.update(
                 value=json.dumps(debug_payload, ensure_ascii=False, indent=2)
             ),
+            gradio.update(visible=show_dir),
+            gradio.update(visible=show_toggle),
         )
     if isinstance(dir_value, Path):
         raw = str(dir_value)
@@ -272,13 +333,27 @@ def update_gallery_from_dir_upload(dir_value: Any):
         "resolved_dir_path": dir_path,
         "image_count": len(image_paths),
     }
+    # 依据当前 debug 状态与是否有图片来更新可见性
+    try:
+        debug_enabled_current = bool(state_manager.get_item("debug_enabled") or False)
+    except Exception:
+        debug_enabled_current = False
+    if debug_enabled_current:
+        show_dir = True
+        show_toggle = True
+    else:
+        if len(image_paths) > 0:
+            show_dir = False
+            show_toggle = False
+        else:
+            show_dir = True
+            show_toggle = True
     return (
-        gradio.update(value=image_paths, visible=True),
+        gradio.update(value=image_paths, visible=len(image_paths) > 0),
         gradio.update(value=json.dumps(debug_payload, ensure_ascii=False, indent=2)),
+        gradio.update(visible=show_dir),
+        gradio.update(visible=show_toggle),
     )
-
-
-    
 
 
 def _is_image_path(p: str) -> bool:
@@ -296,15 +371,43 @@ def _is_image_path(p: str) -> bool:
         return False
 
 
-def on_debug_toggle(flag: bool):
+def on_debug_toggle(flag: bool, gallery_value: Any):
     try:
         state_manager.set_item("debug_enabled", bool(flag))
     except Exception:
         pass
+    # 计算目录与调试开关、图库的可见性（平滑无闪烁，仅控制可见性）
+    # 根据当前 Gallery 的值判断是否已有图片（仅在有图片时展示 Gallery）
+    try:
+        if isinstance(gallery_value, list):
+            has_source_image = len(gallery_value) > 0
+        else:
+            has_source_image = False
+    except Exception:
+        has_source_image = False
+
+    if bool(flag):
+        show_dir = True
+        show_toggle = True
+        # Gallery 仅在已有图片时显示
+        show_gallery = bool(has_source_image)
+    else:
+        if has_source_image:
+            show_dir = False
+            show_toggle = False
+            show_gallery = True
+        else:
+            show_dir = True
+            show_toggle = True
+            show_gallery = False
+
     return (
         gradio.update(visible=bool(flag)),
         gradio.update(visible=bool(flag)),
         gradio.update(visible=bool(flag)),
+        gradio.update(visible=show_dir),
+        gradio.update(visible=show_toggle),
+        gradio.update(visible=show_gallery),
     )
 
 
@@ -403,7 +506,9 @@ def start(
     stream = None
 
     if webcam_mode in ["udp", "v4l2"]:
-        stream = open_stream(webcam_mode, webcam_resolution, webcam_fps)  # type:ignore[arg-type]
+        stream = open_stream(
+            webcam_mode, webcam_resolution, webcam_fps
+        )  # type:ignore[arg-type]
     webcam_width, webcam_height = unpack_resolution(webcam_resolution)
 
     if camera_capture and camera_capture.isOpened():
